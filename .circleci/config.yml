@@ -1,58 +1,48 @@
-# This config was automatically generated from your source code
-# Stacks detected: deps:node:udagram-frontend
 version: 2.1
-orbs:
-  node: circleci/node@5
+ 
 jobs:
-  test-node:
-    # Install node dependencies and run tests
-    executor: node/default
-    working_directory: ~/project/udagram-frontend
-    steps:
-      - checkout:
-          path: ~/project
-      - node/install-packages:
-          pkg-manager: npm
-      - run:
-          name: Run tests
-          command: npm test --passWithNoTests --force
-  build-node:
-    # Build node project
-    executor: node/default
-    working_directory: ~/project/udagram-frontend
-    steps:
-      - checkout:
-          path: ~/project
-      - node/install-packages:
-          pkg-manager: npm
-      - run:
-          command: npm run build
-      - run:
-          name: Create the ~/artifacts directory if it doesn't exist
-          command: mkdir -p ~/artifacts
-      # Copy output to artifacts dir
-      - run:
-          name: Copy artifacts
-          command: cp -R build dist public .output .next .docusaurus ~/artifacts 2>/dev/null || true
-      - store_artifacts:
-          path: ~/artifacts
-          destination: node-build
-  deploy:
-    # This is an example deploy job, not actually used by the workflow
+  build:
     docker:
-      - image: cimg/base:stable
+      - image: circleci/node:14-browsers
     steps:
-      # Replace this with steps to deploy to users
+      - checkout
+      - setup_remote_docker
       - run:
-          name: deploy
-          command: '#e.g. ./deploy.sh'
+          name: Remove package-lock.json
+          command: |
+            rm -f udagram-frontend/package-lock.json
+      - run:
+          name: Remove fsevents from package.json
+          command: |
+            sed -i '/"fsevents":/d' udagram-frontend/package.json
+      - run:
+          name: Install dependencies and recreate package-lock.json
+          command: |
+            cd udagram-frontend && npm install --legacy-peer-deps            
+      - run:
+          name: Build Docker images
+          command: |
+            docker build -t udagram-api-feed ./udagram-api-feed
+            docker build -t udagram-api-user ./udagram-api-user
+            docker build -t reverseproxy ./udagram-reverseproxy
+            docker build -t udagram-frontend ./udagram-frontend         # Ensure to update the tag (e.g., v1 to v2) to trigger Kubernetes to pull the new image version
+            docker tag udagram-api-feed $DOCKER_USERNAME/udagram-api-feed
+            docker tag udagram-api-user $DOCKER_USERNAME/udagram-api-user
+            docker tag reverseproxy $DOCKER_USERNAME/reverseproxy
+            docker tag udagram-frontend $DOCKER_USERNAME/udagram-frontend
+      - run:
+          name: Log in to DockerHub
+          command: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+      - run:
+          name: Push Docker images
+          command: |
+            docker push $DOCKER_USERNAME/udagram-api-feed
+            docker push $DOCKER_USERNAME/udagram-api-user
+            docker push $DOCKER_USERNAME/reverseproxy
+            docker push $DOCKER_USERNAME/udagram-frontend                 # Ensure to update the tag (e.g., v1 to v2) to trigger Kubernetes to pull the new image version
+ 
 workflows:
-  build-and-test:
+  version: 2
+  build_and_push:
     jobs:
-      - test-node
-      - build-node:
-          requires:
-            - test-node
-    # - deploy:
-    #     requires:
-    #       - build-node
+      - build
