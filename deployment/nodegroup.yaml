@@ -1,0 +1,23 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: MyEKSCluster_02
+  region: us-east-1
+
+vpc:
+  subnets:
+    public:
+      us-east-1a: { id: subnet-0241b698d3a2381fe }
+      us-east-1b: { id: subnet-0955971067f76a7b9 }
+      us-east-1c: { id: subnet-0cde7115b9f1f6a13 }
+      us-east-1d: { id: subnet-04811840ab14e1f70 }
+      us-east-1f: { id: subnet-0dfcd02d8a4aa2835 }
+  securityGroup: sg-0a5971e14e72ee205
+
+nodeGroups:
+  - name: ng-default
+    instanceType: t3.medium
+    desiredCapacity: 2
+    minSize: 2
+    maxSize: 3
